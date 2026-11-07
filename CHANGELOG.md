@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+- The classic Textual interface (`casttui --classic`, `casttui-classic`, `CASTTUI_UI`, the `ui` setting) and the Textual dependency. The paned interface is the only one; an old `ui` line in config.toml is ignored and kept.
+
+### Added
+- MIT license.
+- A Debian package (`casttui_<version>_all.deb`) built by the release workflow: casttui and its Python libraries in `/usr/lib/casttui` (pure Python), run by the system python3 (3.11 or newer) through `/usr/bin/casttui`. It is published in the tetronos apt repository (https://tetronos.github.io/apt).
+
+### Fixed
+- The focus colour test passes with urwid 5, which layers display attributes.
+
 ## [0.1.0] - 2026-10-23
 
 ### Added

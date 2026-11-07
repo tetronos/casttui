@@ -22,8 +22,6 @@ class Setting:
 
 
 SETTINGS: tuple[Setting, ...] = (
-    Setting("ui", "panes", "Interface at start: panes, or the classic Textual views",
-            ("panes", "classic")),
     Setting("transcode", True, "Transcode codecs the device can not play (uses CPU)",
             (True, False)),
     Setting("transcode_scale", 0, "Height of the transcoded stream, 0 keeps the source",

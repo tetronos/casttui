@@ -8,7 +8,7 @@ interpolation for a smooth progress bar.
 
 Every catt call here can block (connect, wait-for-state), so callers run them
 off the UI thread. The status callback fires on pychromecast's thread; the UI
-hops back with Textual's ``call_from_thread``.
+hops back to the urwid loop through a wake-up pipe.
 """
 from __future__ import annotations
 

@@ -8,17 +8,15 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 # Depend on catt as a library (import catt.api / catt.controllers), tracking
 # upstream, per SCOPE_CastTUI.md §12. catt pulls in pychromecast + yt-dlp.
-# Textual is the TUI framework (Milestone 2+); see SCOPE_CastTUI.md §4.
+# urwid is the TUI framework (the paned interface).
 dependencies = [
     "catt>=0.13",
-    "textual>=0.80",
     "tomlkit>=0.13",
     "urwid>=2.6",
 ]
 
 [project.scripts]
 casttui = "casttui.cli:main"
-casttui-classic = "casttui.classic:main"
 
 [build-system]
 requires = ["hatchling"]
