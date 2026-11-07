@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-11-07
 
 ### Removed
 - The classic Textual interface (`casttui --classic`, `casttui-classic`, `CASTTUI_UI`, the `ui` setting) and the Textual dependency. The paned interface is the only one; an old `ui` line in config.toml is ignored and kept.
