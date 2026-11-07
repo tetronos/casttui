@@ -1,9 +1,9 @@
-"""Command line parsing and the UI choice."""
+"""Command line parsing."""
 from __future__ import annotations
 
 import pytest
 
-from casttui.cli import parse_args, parse_source, pick_ui
+from casttui.cli import parse_args, parse_source
 
 
 def test_parse_source_none_url_and_file(tmp_path, monkeypatch):
@@ -23,19 +23,11 @@ def test_parse_source_rejects_a_missing_file_and_extra_args(tmp_path, capsys):
         parse_source(["a", "b"])
 
 
-def test_device_and_ui_flags():
-    args = parse_args(["--classic", "-d", "192.168.1.50", "https://x/y"])
-    assert (args.ui, args.device, args.source) == ("classic", "192.168.1.50", "https://x/y")
-    assert parse_args(["--panes"]).ui == "panes"
+def test_device_flag():
+    args = parse_args(["-d", "192.168.1.50", "https://x/y"])
+    assert (args.device, args.source) == ("192.168.1.50", "https://x/y")
     with pytest.raises(SystemExit):
-        parse_args(["--panes", "--classic"])
-
-
-def test_ui_choice_order():
-    assert pick_ui("classic", {"CASTTUI_UI": "panes"}, "panes") == "classic"
-    assert pick_ui(None, {"CASTTUI_UI": "classic"}, "panes") == "classic"
-    assert pick_ui(None, {}, "classic") == "classic"
-    assert pick_ui(None, {"CASTTUI_UI": "bogus"}, "bogus") == "panes"
+        parse_args(["--classic"])  # the classic UI is gone
 
 
 def test_help_lists_every_setting(capsys):

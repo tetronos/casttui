@@ -598,8 +598,6 @@ class PanesApp:
                 self.loop.screen.set_terminal_properties(colors=self.depth)
                 self.loop.screen.register_palette(PALETTE)
                 self.loop.screen.clear()
-        elif key == "ui":
-            self.say("ui takes effect at the next start.")
 
     def cycle(self, step: int) -> None:
         key = self.config_list.current()

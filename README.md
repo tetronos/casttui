@@ -8,7 +8,7 @@ without leaving the terminal. Fits the tetron-wm terminal desktop.
 
 Full design in [`SCOPE_CastTUI.md`](SCOPE_CastTUI.md).
 
-Status: **paned interface**. A one-screen, keyboard-first interface (urwid) with Devices, Source, Now playing, Config and History panes, live status, in-app settings, and plain ASCII and low-colour support for a bare console. The original Textual interface is kept as `casttui --classic`. Casts **local files** (served over a managed HTTP server, transcoded when the device can not decode them), **direct media URLs**, **YouTube** (native receiver), other **yt-dlp sites**, and arbitrary **web pages** (DashCast). Remembers the last device and reconnects on launch, also by address. tetron-wm integration entries live in [`docs/TETRON_WM_INTEGRATION.md`](docs/TETRON_WM_INTEGRATION.md).
+Status: **paned interface**. A one-screen, keyboard-first interface (urwid) with Devices, Source, Now playing, Config and History panes, live status, in-app settings, and plain ASCII and low-colour support for a bare console. Casts **local files** (served over a managed HTTP server, transcoded when the device can not decode them), **direct media URLs**, **YouTube** (native receiver), other **yt-dlp sites**, and arbitrary **web pages** (DashCast). Remembers the last device and reconnects on launch, also by address. tetron-wm integration entries live in [`docs/TETRON_WM_INTEGRATION.md`](docs/TETRON_WM_INTEGRATION.md).
 
 ## Setup
 
@@ -27,7 +27,6 @@ uv run casttui
 uv run casttui ~/Videos/clip.mp4        # cast a file as soon as a device is connected
 uv run casttui https://example.com/v    # or a URL (YouTube and other sites too)
 uv run casttui -d 192.168.1.50          # connect by address, no discovery needed
-uv run casttui --classic                # the classic Textual interface
 uv run casttui --help                   # every option and setting
 ```
 
@@ -59,10 +58,6 @@ From any pane: `space` play/pause, `h`/`l` or arrows seek, `+`/`-` volume, `m` m
 
 The layout follows the terminal: three columns from 150 columns wide, two from 80, one pane at a time (with a tab strip) below that.
 
-### The classic interface
-
-`casttui --classic`, `casttui-classic`, `CASTTUI_UI=classic` or `ui = "classic"` start the original Textual interface: Devices, Cast and Now playing views cycled with Tab, with a button for every action.
-
 Local files are served to the Chromecast over HTTP from this host, so the two
 must share a LAN subnet (SCOPE §8/§12). `xclip` or `xsel` enables middle-click
 paste into the URL field.
@@ -88,7 +83,6 @@ and the stream is not seekable. It needs `ffmpeg` on `$PATH`. Set
 `~/.config/casttui/config.toml` (override dir with `$XDG_CONFIG_HOME`). The Config pane edits it in place and keeps your comments; a missing or malformed file falls back to defaults, and a bad value falls back for that key only. `casttui --help` lists every setting.
 
 ```toml
-ui = "panes"            # or "classic"
 transcode = true        # ffmpeg-transcode unsupported codecs instead of skipping
 transcode_scale = 0     # height of the transcoded stream, 0 keeps the source
 seek_step = 10          # seconds per seek key

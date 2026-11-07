@@ -222,7 +222,7 @@ def test_config_pane_cycles_and_saves(tmp_path):
     p = tmp_path / "c.toml"
     p.write_text("# mine\n")
     app = make(cfg_path=p)
-    keys(app, "4", "j")  # ui, transcode
+    keys(app, "4")  # transcode is the first setting
     keys(app, "enter")
     assert app.cfg.transcode is False
     keys(app, "j", "j", "+")  # seek_step 10 -> 15
