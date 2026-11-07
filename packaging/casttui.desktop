@@ -3,8 +3,7 @@ Type=Application
 Name=casttui
 GenericName=Chromecast remote
 Comment=Cast local files, URLs, YouTube and web pages to a Chromecast from the terminal
-# Runs in a terminal; tetron-wm launches it as a windowed TUI. Adjust the exec
-# to the installed entry point (`casttui`) once it is on $PATH.
+# Runs in a terminal; tetron-wm launches it as a windowed TUI.
 Exec=casttui
 Terminal=true
 Categories=AudioVideo;Player;Utility;

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Python may have written bytecode caches under /usr/lib/casttui (for example a run as root before
+# the launcher passed -B). They are not in the package, so remove them before dpkg removes the tree.
+set -e
+if [ -d /usr/lib/casttui ]; then
+	find /usr/lib/casttui -depth -type d -name __pycache__ -exec rm -rf {} +
+fi
+exit 0
