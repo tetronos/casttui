@@ -424,7 +424,9 @@ def test_focus_colours_only_the_border_and_reverses_the_title(media):
     app = make(cfg=Config(start_dir=str(media)))
     keys(app, "2")
     canvas = app.frame.render((120, 32), focus=True)
-    runs = [(a, t.decode()) for row in canvas.content() for a, _, t in row]
+    # urwid 5 stacks attributes (LayeredAttr, innermost first); the innermost layer is the one shown.
+    top = lambda a: a.layers[0] if hasattr(a, "layers") else a
+    runs = [(top(a), t.decode()) for row in canvas.content() for a, _, t in row]
     assert any(a == "title_focus" and ">2 Source" in t for a, t in runs)
     assert not any(a == "frame_focus" and "shows/" in t for a, t in runs)
     assert any(a == "body" and "shows/" in t for a, t in runs)
