@@ -1,0 +1,40 @@
+# casttui .deb, built by tetron-packaging's mkdeb from the bundle made by scripts/build-bundle.sh.
+name = "casttui"
+description = "terminal UI for casting media to a Chromecast"
+long_description = """
+Cast local files, URLs, YouTube and web pages to a Chromecast from the
+terminal: a keyboard-first paned interface with device discovery, add by
+address, history, pictures cast and optional ffmpeg transcoding for files the
+Chromecast can not play. Built on catt.
+
+casttui and its Python libraries are bundled in /usr/lib/casttui (pure
+Python) and run by the system python3."""
+section = "video"
+license = "MIT"
+homepage = "https://github.com/tetronos/casttui"
+depends = ["python3 (>= 3.11)"]
+suggests = ["ffmpeg"]
+smoke = "casttui --version"
+
+[[files]]
+src = "../build/bundle"
+dst = "usr/lib/casttui"
+mode = "0644"
+
+[[files]]
+src = "casttui-launcher"
+dst = "usr/bin/casttui"
+mode = "0755"
+
+[[files]]
+src = "casttui.desktop"
+dst = "usr/share/applications/casttui.desktop"
+mode = "0644"
+
+[[files]]
+src = "../LICENSE"
+dst = "usr/share/doc/casttui/copyright"
+mode = "0644"
+
+[scripts]
+prerm = "prerm"

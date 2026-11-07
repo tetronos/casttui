@@ -1,0 +1,12 @@
+#!/bin/sh
+# /usr/bin/casttui: runs the casttui bundled in /usr/lib/casttui (casttui and its Python
+# libraries, pure Python) with the system python3. -s keeps user site-packages out, -B writes
+# no bytecode into /usr/lib/casttui;
+# protobuf uses its pure-Python implementation (the bundle has no compiled modules).
+PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python exec python3 -s -B -c '
+import sys
+sys.path.insert(0, "/usr/lib/casttui")
+sys.argv[0] = "casttui"
+from casttui.cli import main
+sys.exit(main())
+' "$@"

@@ -1,0 +1,60 @@
+name: Release
+
+# On a v* tag: run the tests, build the pure-Python bundle (scripts/build-bundle.sh, exact versions from
+# uv.lock), package it as casttui_<version>-1_all.deb with tetron-packaging's mkdeb (which also installs it
+# in a clean Debian 13 container), install it on Debian 12, Debian 13 and Ubuntu 24.04 and run the test
+# suite against the installed copy, then attach the .deb to the release. The tetronos apt repository
+# (tetronos/apt) picks it up from there.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Tag matches the version
+        run: |
+          v=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but pyproject version $v"; exit 1; }
+      - name: Tests
+        run: uv run --frozen python -m pytest -q -p no:cacheprovider
+      - name: Build the bundle
+        run: scripts/build-bundle.sh build
+      - name: Build the .deb (and install it in debian:trixie)
+        id: deb
+        uses: tetronos/tetron-packaging@9f23a827fbac1814ed6a4516a54ecee4e0c06def
+        with:
+          deb-toml: packaging/deb.toml
+          version: ${{ github.ref_name }}
+          maintainer: ${{ vars.DEB_MAINTAINER }}
+          smoke: casttui --version
+      - name: Install and test on Debian 12, Debian 13, Ubuntu 24.04
+        run: |
+          d=$(dirname "${{ steps.deb.outputs.deb }}"); f=$(basename "${{ steps.deb.outputs.deb }}")
+          for img in debian:bookworm debian:trixie ubuntu:24.04; do
+            echo "== $img"
+            docker run --rm -v "$PWD/$d:/deb:ro" -v "$PWD/tests:/t/tests:ro" -v "$PWD/conftest.py:/t/conftest.py:ro" "$img" bash -c "
+              set -e; export DEBIAN_FRONTEND=noninteractive
+              apt-get -qq update >/dev/null
+              apt-get -qq install -y /deb/$f python3-pip >/dev/null
+              casttui --version
+              pip3 -q install --break-system-packages 'pytest>=9.1.1' 'pytest-asyncio>=1.4.0' >/dev/null 2>&1 || pip3 -q install 'pytest>=9.1.1' 'pytest-asyncio>=1.4.0' >/dev/null
+              cd /t && PYTHONPATH=/usr/lib/casttui PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python python3 -m pytest -q -p no:cacheprovider tests
+              apt-get -qq purge -y casttui >/dev/null
+              test ! -e /usr/lib/casttui && test ! -e /usr/bin/casttui"
+          done
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          awk -v h="## [${tag#v}]" 'index($0, h) == 1 {f = 1; next} f && /^## \[/ {exit} f' CHANGELOG.md > notes.md
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "casttui $tag" --notes-file notes.md
+          gh release upload "$tag" "${{ steps.deb.outputs.deb }}" "${{ steps.deb.outputs.sha256 }}" --clobber
