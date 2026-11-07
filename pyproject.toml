@@ -3,6 +3,8 @@ name = "casttui"
 version = "0.1.0"
 description = "A terminal UI for casting media to a Chromecast, built on catt."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 # Depend on catt as a library (import catt.api / catt.controllers), tracking
 # upstream, per SCOPE_CastTUI.md §12. catt pulls in pychromecast + yt-dlp.
