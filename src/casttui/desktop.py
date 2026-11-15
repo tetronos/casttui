@@ -251,18 +251,50 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
 const MIME = 'video/mp4; codecs="CODECS"';
 const v = document.getElementById("v"), msg = document.getElementById("msg");
 function say(t) { msg.textContent = t; msg.style.display = t ? "block" : "none"; }
-function retry(t) { say(t); setTimeout(() => location.reload(), 2000); }
+if (location.search.indexOf("debug") >= 0) {  // ?debug: a status line for finding out why a device shows nothing
+  const d = document.createElement("div");
+  d.style.cssText = "position:fixed;left:0;top:0;right:0;color:#0f0;font:20px monospace;background:#000a;padding:4px;z-index:9";
+  document.body.appendChild(d);
+  const log = document.createElement("pre");
+  log.style.cssText = "position:fixed;left:0;top:34px;color:#ff0;font:18px monospace;background:#000a;margin:0;padding:4px;z-index:9";
+  document.body.appendChild(log);
+  setInterval(() => {
+    try { log.textContent = JSON.parse(sessionStorage.dbg || "[]").join("\\n"); } catch (e) {}
+    const b = v.buffered, r = b.length ? b.start(0).toFixed(1) + "-" + b.end(b.length - 1).toFixed(1) : "none";
+    d.textContent = "rs=" + v.readyState + " t=" + v.currentTime.toFixed(1) + " buf=" + r + " paused=" + v.paused +
+      " err=" + (v.error ? v.error.code + ":" + v.error.message : "-") + " size=" + v.videoWidth + "x" + v.videoHeight +
+      " ms=" + (window.__ms ? window.__ms.readyState : "-") + " win=" + innerWidth + "x" + innerHeight + " n=" + (window.__n || 0);
+  }, 500);
+}
+const DEBUG = location.search.indexOf("debug") >= 0;
+function note(t) {  // ?debug: a log that survives the reloads
+  if (!DEBUG) return;
+  let l = []; try { l = JSON.parse(sessionStorage.dbg || "[]"); } catch (e) {}
+  l.push(new Date().toTimeString().slice(3, 8) + " " + t); l = l.slice(-9);
+  try { sessionStorage.dbg = JSON.stringify(l); } catch (e) {}
+}
+function retry(t) { note("RETRY " + t); say(t); setTimeout(() => location.reload(), 2000); }
+v.addEventListener("error", () => note("video error " + (v.error ? v.error.code + " " + v.error.message : "")));
+for (const ev of ["waiting", "stalled", "playing", "loadedmetadata", "ended"]) v.addEventListener(ev, () => note("video " + ev));
 
 if (!window.MediaSource || !MediaSource.isTypeSupported(MIME)) {
   say("this device can not play " + MIME);
 } else {
   const ms = new MediaSource();
+  window.__ms = ms;
   v.src = URL.createObjectURL(ms);
   ms.addEventListener("sourceopen", () => run(ms), { once: true });
 }
 
 async function run(ms) {
+  note("sourceopen " + ms.readyState);
   const sb = ms.addSourceBuffer(MIME);
+  // Place every fragment right after the previous one whatever its own
+  // timestamp: a viewer that joins late is primed with a GOP stamped with the
+  // seconds the encoder has already run, and a clock that starts at 0 would
+  // wait forever in front of that data.
+  try { sb.mode = "sequence"; } catch (e) { note("sequence mode: " + e.name); }
+  sb.addEventListener("error", () => note("sourcebuffer error"));
   let pending = [];
   // Append whatever arrived while the buffer was busy as one block.
   function pump() {
@@ -271,7 +303,7 @@ async function run(ms) {
     const all = new Uint8Array(n); let o = 0;
     for (const c of pending) { all.set(c, o); o += c.length; }
     pending = [];
-    try { sb.appendBuffer(all); } catch (e) { retry("buffer error, reconnecting"); }
+    try { sb.appendBuffer(all); } catch (e) { note("append " + e.name + " " + e.message); retry("buffer error, reconnecting"); }
   }
   sb.addEventListener("updateend", pump);
 
@@ -280,23 +312,24 @@ async function run(ms) {
     const b = v.buffered;
     if (!b.length) return;
     const start = b.start(0), end = b.end(b.length - 1), lag = end - v.currentTime;
-    if (v.currentTime < start || lag > 0.6) v.currentTime = Math.max(start, end - 0.2);
-    v.playbackRate = lag > 0.3 ? 1.05 : 1.0;
-    if (!sb.updating && v.currentTime - start > 3) sb.remove(start, v.currentTime - 2);
+    if (v.currentTime < start - 0.1 || lag > 1.5) v.currentTime = Math.max(start, end - 0.5);
+    v.playbackRate = lag > 0.9 ? 1.05 : 1.0;
+    if (!sb.updating && v.currentTime - start > 4) sb.remove(start, v.currentTime - 2);
     if (v.paused) v.play().catch(() => {});
   }, 500);
 
   let res;
   try { res = await fetch("stream", { cache: "no-store" }); }
   catch (e) { return retry("can not reach casttui, retrying"); }
+  note("fetch " + res.status);
   if (!res.ok) return retry("casttui said " + res.status + ", retrying");
   const reader = res.body.getReader();
   say("");
   for (;;) {
     let r;
-    try { r = await reader.read(); } catch (e) { break; }
-    if (r.done) break;
-    pending.push(r.value); pump();
+    try { r = await reader.read(); } catch (e) { note("read error " + e); break; }
+    if (r.done) { note("stream closed by casttui, " + (window.__n || 0) + " bytes"); break; }
+    window.__n = (window.__n || 0) + r.value.length; pending.push(r.value); pump();
   }
   retry("stream ended");
 }
@@ -446,9 +479,10 @@ class DesktopServer:
                 if server.allow is not None and self.client_address[0] not in server.allow:
                     return self.deny(403)
                 base = f"/{server.token}/"
-                if self.path == base:
+                path = self.path.split("?", 1)[0]
+                if path == base:
                     return self.page()
-                if self.path == base + "stream":
+                if path == base + "stream":
                     return self.stream()
                 return self.deny(404)
 

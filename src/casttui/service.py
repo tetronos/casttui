@@ -12,6 +12,8 @@ hops back to the urwid loop through a wake-up pipe.
 """
 from __future__ import annotations
 
+import os
+
 import ipaddress
 import threading
 import time
@@ -318,7 +320,7 @@ class CastService:
             if receiver == "media":
                 self._cast(dev, server.url + "stream", "video/mp4", "Desktop")
             else:
-                self._load_page(dev, server.url)
+                self._load_page(dev, server.url + ("?debug=1" if os.environ.get("CASTTUI_DEBUG") else ""))
         except Exception:
             server.stop()
             raise

@@ -200,3 +200,11 @@ def test_service_holds_the_desktop_server_and_hides_its_url(monkeypatch):
     assert served_url(s) is None  # the token URL is never shown
     s.stop()
     assert s.desktop() is None and server._proc.poll() is not None
+
+
+def test_player_places_fragments_in_sequence_and_has_a_debug_line():
+    """A late viewer is primed with a GOP stamped with the encoder's uptime; without
+    sequence mode the clock waits at 0 in front of that data and the TV stays blank."""
+    from casttui.desktop import PLAYER_HTML
+    assert 'sb.mode = "sequence"' in PLAYER_HTML
+    assert "?debug" in PLAYER_HTML

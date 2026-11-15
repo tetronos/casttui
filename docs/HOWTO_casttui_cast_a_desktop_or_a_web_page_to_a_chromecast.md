@@ -55,7 +55,7 @@ Everything on the screen is visible on the TV, so treat it like sharing a screen
 
 ## Troubleshooting
 
-`no device found`: the TV is asleep or on another network segment. Run `casttui --status -d IP`. The cast starts but the TV stays black: wait up to 10 seconds, then check `casttui --status` shows `dashcast`. `ffmpeg` missing: install it (`sudo apt install ffmpeg`). `/dev/fb0` permission denied: add your user to the `video` group and log in again. A desktop cast ends by itself after 2 minutes: nothing connected, usually a firewall between the computer and the TV.
+`no device found`: the TV is asleep or on another network segment. Run `casttui --status -d IP`. The cast starts but the TV stays black: wait up to 10 seconds, then check `casttui --status` shows `dashcast`. `ffmpeg` missing: install it (`sudo apt install ffmpeg`). `/dev/fb0` permission denied: add your user to the `video` group and log in again. The TV stays blank while the stream is running: run with `CASTTUI_DEBUG=1 casttui --desktop`, which adds a status line and a short event log (survives page reloads) at the top of the TV picture, and read what the video element reports. A desktop cast ends by itself after 2 minutes: nothing connected, usually a firewall between the computer and the TV.
 
 ## See also
 
