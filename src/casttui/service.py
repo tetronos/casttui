@@ -21,9 +21,10 @@ from typing import Callable, List, Optional
 from catt.api import CattDevice, discover
 from catt.controllers import get_app, get_controller
 from catt.stream_info import StreamInfo
-from catt.util import guess_mime
+from catt.util import get_local_ip, guess_mime
 from pychromecast.controllers.media import MediaStatusListener
 
+from .desktop import DesktopServer, capture_cmd, detect_backend
 from .fileserver import FileServer, TranscodeServer
 
 
@@ -94,8 +95,12 @@ def model_name(device: CattDevice) -> str:
 
 
 def served_url(service: "CastService") -> Optional[str]:
+    """The local file server's URL, for display. None for a desktop cast:
+    its URL carries the secret token."""
     server = service._fileserver
-    return server.url if server is not None else None
+    if server is None or isinstance(server, DesktopServer):
+        return None
+    return server.url
 
 
 class CastService:
@@ -115,7 +120,7 @@ class CastService:
         self._lock = threading.Lock()
         self._status = Status()
         self._updated_at = time.monotonic()
-        self._fileserver: Optional[FileServer | TranscodeServer] = None
+        self._fileserver: Optional[FileServer | TranscodeServer | DesktopServer] = None
 
     # -- discovery / selection -------------------------------------------
 
@@ -267,12 +272,63 @@ class CastService:
         """Display an arbitrary web page on the device (DashCast)."""
         dev = self._require()
         self._stop_fileserver()
+        self._load_page(dev, url)
+
+    @staticmethod
+    def _load_page(dev: CattDevice, url: str) -> None:
+        """Force launch DashCast and navigate it to ``url``.
+
+        catt loads with force=True, so DashCast replaces its own page with
+        ``url`` (top level) instead of framing it: a plain http:// LAN page
+        works, which is what the desktop player needs.
+        """
         app = get_app("dashcast", cast_type=dev._cast.cast_type)
         if app.name != "dashcast":
             raise RuntimeError("this device does not support casting web pages")
         ctrl = get_controller(dev._cast, app, action="load_url")
         ctrl.prep_app()
         ctrl.load_url(url)
+
+    def cast_desktop(self, backend: str = "auto", fps: int = 30, scale: int = 720,
+                     audio: bool = False, receiver: str = "dashcast") -> DesktopServer:
+        """Capture this screen and cast it; returns the running server.
+
+        The server is held like a file server, so :meth:`stop`, :meth:`close`
+        and the next cast end the capture. ``receiver`` "dashcast" shows the
+        low delay player page; "media" has the Default Media Receiver play the
+        stream (seconds of delay, for devices without DashCast). Only the
+        device and this host may fetch the stream. Raises RuntimeError with a
+        one line reason; the returned ``server.url`` holds the secret token
+        and must never be shown or logged.
+        """
+        dev = self._require()
+        self._stop_fileserver()
+        if backend == "auto":
+            backend = detect_backend()
+        local = get_local_ip(dev.ip_addr)
+        if not local:
+            raise RuntimeError("could not find a LAN address the Chromecast can reach")
+        server = DesktopServer(capture_cmd(backend, fps, scale, audio), local,
+                               allow={dev.ip_addr, local, "127.0.0.1"}, audio=audio)
+        server.backend = backend
+        server.start()
+        try:
+            if not server.wait_ready(10):
+                raise RuntimeError(f"screen capture failed: {server.error()}")
+            if receiver == "media":
+                self._cast(dev, server.url + "stream", "video/mp4", "Desktop")
+            else:
+                self._load_page(dev, server.url)
+        except Exception:
+            server.stop()
+            raise
+        self._fileserver = server
+        return server
+
+    def desktop(self) -> Optional[DesktopServer]:
+        """The running desktop cast, or None."""
+        server = self._fileserver
+        return server if isinstance(server, DesktopServer) else None
 
     def _stop_fileserver(self) -> None:
         if self._fileserver is not None:

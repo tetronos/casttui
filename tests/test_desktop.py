@@ -15,6 +15,7 @@ import pytest
 
 from casttui import desktop as dt
 from casttui import headless
+from casttui.service import CastService, served_url
 
 
 def box(kind: bytes, payload: bytes = b"") -> bytes:
@@ -121,27 +122,28 @@ class FakeCast:
         self.app_id = None
 
 
-class FakeService:
+class FakeService(CastService):
+    """The real cast_desktop and stop logic; only the device calls are fake."""
+
     def __init__(self):
-        self.device, self.sites, self.stopped = None, [], False
+        super().__init__()
+        self.sites, self.stopped = [], False
         self.dev = SimpleNamespace(name="TV", ip_addr="127.0.0.1", _cast=FakeCast())
 
     def connect(self, target):
         return self.dev
 
-    def cast_site(self, url):
+    def _load_page(self, dev, url):
         self.sites.append(url)
-        self.dev._cast.app_id = "84912283"
+        dev._cast.app_id = "84912283"
 
     def _cast(self, dev, url, ctype, title=None):
         self.sites.append(url)
-        self.dev._cast.app_id = "CC1AD845"
+        dev._cast.app_id = "CC1AD845"
 
     def stop(self):
         self.stopped = True
-
-    def close(self):
-        pass
+        self._stop_fileserver()
 
 
 def cfg(**kw):
@@ -152,7 +154,7 @@ def cfg(**kw):
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
 def test_headless_desktop_casts_then_ends_when_the_tv_moves_on(monkeypatch, capsys):
-    monkeypatch.setattr("catt.util.get_local_ip", lambda host: "127.0.0.1")
+    monkeypatch.setattr("casttui.service.get_local_ip", lambda host: "127.0.0.1")
     monkeypatch.setattr(headless, "DESKTOP_GRACE", 0.0)
     s, lines = FakeService(), []
 
@@ -172,17 +174,29 @@ def test_headless_desktop_casts_then_ends_when_the_tv_moves_on(monkeypatch, caps
 
 
 def test_headless_desktop_capture_failure_is_one_line(monkeypatch, capsys):
-    monkeypatch.setattr("catt.util.get_local_ip", lambda host: "127.0.0.1")
-    monkeypatch.setattr(dt, "capture_cmd", lambda *a, **k: ["sh", "-c", "echo boom >&2; exit 1"])
+    monkeypatch.setattr("casttui.service.get_local_ip", lambda host: "127.0.0.1")
+    monkeypatch.setattr("casttui.service.capture_cmd", lambda *a, **k: ["sh", "-c", "echo boom >&2; exit 1"])
     assert headless.desktop(config=cfg(), service=FakeService(), out=print) == 1
     assert "casttui: screen capture failed: boom" in capsys.readouterr().err
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
 def test_headless_desktop_media_receiver_gets_the_stream_url(monkeypatch):
-    monkeypatch.setattr("catt.util.get_local_ip", lambda host: "127.0.0.1")
+    monkeypatch.setattr("casttui.service.get_local_ip", lambda host: "127.0.0.1")
     s, stop = FakeService(), threading.Event()
     threading.Timer(1.0, stop.set).start()
     assert headless.desktop(config=cfg(desktop_receiver="media"), service=s, stop=stop,
                             out=lambda _: None) == 0
     assert s.sites[0].endswith("/stream")
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_service_holds_the_desktop_server_and_hides_its_url(monkeypatch):
+    monkeypatch.setattr("casttui.service.get_local_ip", lambda host: "127.0.0.1")
+    s = FakeService()
+    s.device = s.dev
+    server = s.cast_desktop("test", 15, 240)
+    assert s.desktop() is server and server.backend == "test"
+    assert served_url(s) is None  # the token URL is never shown
+    s.stop()
+    assert s.desktop() is None and server._proc.poll() is not None

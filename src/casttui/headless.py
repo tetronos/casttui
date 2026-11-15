@@ -140,8 +140,8 @@ def run(action: str, url: Optional[str] = None, device: Optional[str] = None,
 # (the TV was switched to another app, or lost the network for good).
 DESKTOP_IDLE = 120.0
 
-# After casting, how long DashCast may take to show up as the running app
-# before "not running" means the cast was stopped.
+# After casting, how long the device may take to report the cast app as
+# running before "another app" means the cast was stopped.
 DESKTOP_GRACE = 15.0
 
 
@@ -152,12 +152,9 @@ def desktop(device: Optional[str] = None, config=None, service=None,
     Runs the capture and stream server here, casts the player page through
     DashCast, then watches: the capture must keep running, the device must
     keep running the app that was cast (``casttui --stop`` or the TV remote
-    ends it), and
-    somebody must be watching the stream. Ctrl+C quits DashCast on the TV too,
-    so it does not keep showing a frozen picture.
+    ends it), and somebody must be watching the stream. Ctrl+C quits the app
+    on the TV too, so it does not keep showing a frozen picture.
     """
-    from . import desktop as dt
-
     if service is None:
         from .service import CastService
         service = CastService()
@@ -173,32 +170,13 @@ def desktop(device: Optional[str] = None, config=None, service=None,
         return dev
 
     try:
-        backend = config.desktop_backend
-        if backend == "auto":
-            backend = dt.detect_backend()
         dev = run_with_timeout(connect, TIMEOUT)
-        from catt.util import get_local_ip
-
-        local = get_local_ip(dev.ip_addr)
-        if not local:
-            raise RuntimeError("could not find a LAN address the Chromecast can reach")
-        cmd = dt.capture_cmd(backend, config.desktop_fps, config.desktop_scale,
-                             config.desktop_audio)
-        # Only the TV and this host may fetch the page and the stream.
-        server = dt.DesktopServer(cmd, local, allow={dev.ip_addr, local, "127.0.0.1"},
-                                  audio=config.desktop_audio)
-        server.start()
-        if not server.wait_ready(10):
-            raise RuntimeError(f"screen capture failed: {server.error()}")
-        if config.desktop_receiver == "media":
-            # Part C fallback: the Default Media Receiver plays the stream URL
-            # itself; it buffers several seconds but needs no DashCast.
-            def play():
-                service._cast(dev, server.url + "stream", "video/mp4", "Desktop")
-            run_with_timeout(play, TIMEOUT)
-        else:
-            run_with_timeout(lambda: service.cast_site(server.url), TIMEOUT)
-        dashcast = getattr(getattr(dev, "_cast", None), "app_id", None)
+        # Capture start (10 s at most) plus the cast itself.
+        server = run_with_timeout(lambda: service.cast_desktop(
+            config.desktop_backend, config.desktop_fps, config.desktop_scale,
+            config.desktop_audio, config.desktop_receiver), TIMEOUT + 10)
+        backend = server.backend
+        cast_app = getattr(getattr(dev, "_cast", None), "app_id", None)
         out(f"CASTING DESKTOP ({backend}) to {dev.name} from {safe_url(server.url)}. "
             "Ctrl+C or casttui --stop ends it.")
         started = time.monotonic()
@@ -206,7 +184,7 @@ def desktop(device: Optional[str] = None, config=None, service=None,
             if server.ended.is_set():
                 raise RuntimeError(f"screen capture stopped: {server.error()}")
             running = getattr(getattr(dev, "_cast", None), "app_id", None)
-            if dashcast and running != dashcast and time.monotonic() - started > DESKTOP_GRACE:
+            if cast_app and running != cast_app and time.monotonic() - started > DESKTOP_GRACE:
                 out(f"stopped: {dev.name} is no longer showing the desktop")
                 return 0
             if server.idle_seconds() > DESKTOP_IDLE:
@@ -227,8 +205,7 @@ def desktop(device: Optional[str] = None, config=None, service=None,
         print(f"casttui: {msg}", file=sys.stderr)
         return 1
     finally:
-        if server is not None:
-            server.stop()
+        service.close()  # stops the capture and the server
 
 
 def exit_now(code: int) -> None:

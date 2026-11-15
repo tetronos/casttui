@@ -39,6 +39,8 @@ MEDIA_EXT = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".mp3", ".m4a",
              ".jpg", ".jpeg", ".png", ".gif", ".webp")
 WIDE, NARROW, SHORT = 150, 80, 18
 MIN_OTHER = 6  # rows kept for Source/History beside a tall Now playing
+# Config pane: the setting name column fits the longest name plus a space.
+KEY_W = max(len(s.key) for s in SETTINGS) + 1
 
 
 @dataclass
@@ -119,7 +121,8 @@ class PanesApp:
         self.where = urwid.Text("", wrap="clip")
         self.rule = urwid.Divider(box.get("tline", "\u2500"))
         self.source_buttons = ClickRow(lambda: [
-            ("[u: URL or YouTube]", "url"), (" ", None), ("[w: web page]", "page")],
+            ("[u: URL or YouTube]", "url"), (" ", None), ("[w: web page]", "page"),
+            (" ", None), ("[D: desktop]", "desktop")],
             self.button)
         source_body = urwid.Pile([("pack", self.where), ("pack", self.source_buttons),
                                   ("pack", self.rule), self.files], focus_item=3)
@@ -153,7 +156,12 @@ class PanesApp:
             p.set_focus(n == self.focus)
         if self.prompt is None:
             self.bar = [(" ", None), *bar_items(self.keys, PANES[self.focus])]
-            self.keybar.set_text("".join(t for t, _ in self.bar))
+            # The screen can show secrets: while it is cast, say so on the
+            # bottom line in every pane and layout, and make it a stop button.
+            if self.service.desktop() is not None:
+                self.bar.insert(0, (" CASTING DESKTOP [s: stop] ", "stop"))
+            self.keybar.set_text([("error", t) if a == "stop" and t.startswith(" CASTING") else t
+                                  for t, a in self.bar])
         self.body._invalidate()
 
     def build(self, cols: int, rows_: int):
@@ -258,6 +266,12 @@ class PanesApp:
         if p.kind == "page":
             return [f"{p.title}\n", ("state", "WEB PAGE"), "   (no playback status)\n\n",
                     f"device  {dev.name}\nshown   {p.target}"]
+        if p.kind == "desktop":
+            server = self.service.desktop()
+            viewers = server.viewers() if server else 0
+            return [("error", "CASTING DESKTOP"), "   everything on this screen is on the TV\n\n",
+                    f"device  {dev.name}\ncapture {p.mode}\nviewers {viewers}\n\n",
+                    ("dim", "s stops (the TV too), q stops and quits.")]
         s = self.service.snapshot()
         vol = f"vol {int(s.volume * 100)}%" if s.volume is not None else "vol --"
         vol += " (muted)" if s.muted else ""
@@ -268,7 +282,7 @@ class PanesApp:
 
     def now_playing_details(self, cols: int):
         dev, p = self.service.device, self.playing
-        if dev is None or p is None or p.kind == "page":
+        if dev is None or p is None or p.kind in ("page", "desktop"):
             return ""
         s = self.service.snapshot()
         out = [f"\ndevice  {dev.name} {model_name(dev)}\n",
@@ -286,6 +300,8 @@ class PanesApp:
         with a device, so the mouse can play, stop and change the volume."""
         if self.service.device is None:
             return []
+        if self.playing is not None and self.playing.kind == "desktop":
+            return [("[stop desktop]", "stop")]
         playing = self.service.snapshot().state == "PLAYING"
         seg = [("[<<]", "rewind"), (" ", None), ("[pause]" if playing else "[play]", "playpause"),
                (" ", None), ("[>>]", "ffwd"), (" ", None), ("[stop]", "stop"), (" ", None),
@@ -297,7 +313,7 @@ class PanesApp:
         items = []
         for s in SETTINGS:
             value = show(getattr(self.cfg, s.key))
-            items.append((f"{s.key:<16}{value:<15} {s.help}", s.key))
+            items.append((f"{s.key:<{KEY_W}}{value:<15} {s.help}", s.key))
         self.config_list.set_items(items)
 
     def refresh_history(self) -> None:
@@ -537,6 +553,38 @@ class PanesApp:
 
         self.bg(self.service.cast_site, url, done=done, fail="Could not show page")
 
+    def cast_desktop(self) -> None:
+        """Cast this screen: opt in by key press, every time."""
+        if not self.need_device():
+            return
+        c = self.cfg
+        self.say("Starting the screen capture and casting the desktop...")
+
+        def work():
+            return self.service.cast_desktop(c.desktop_backend, c.desktop_fps, c.desktop_scale,
+                                             c.desktop_audio, c.desktop_receiver)
+
+        def done(server):
+            height = f"{c.desktop_scale}p" if c.desktop_scale else "full size"
+            mode = f"{server.backend} {height} {c.desktop_fps} fps via {c.desktop_receiver}"
+            self.started(Playing("desktop", "desktop", "Desktop", mode))
+            self.note(f"desktop ({server.backend})")
+            self.say("Casting the desktop. Everything on this screen is on the TV; s stops.")
+            self.layout()
+
+        self.bg(work, done=done, fail="Could not cast the desktop")
+
+    def check_desktop(self) -> None:
+        """End the desktop cast in the UI when the capture died by itself."""
+        server = self.service.desktop()
+        if server is None or not server.ended.is_set():
+            return
+        reason = server.error()
+        self.bg(self.service.stop, fail="Stop failed")  # quit the frozen picture
+        self.playing = None
+        self.say(f"Desktop cast ended: {reason}", error=True)
+        self.layout()
+
     def started(self, playing: Playing) -> None:
         self.playing = playing
         # One pane at a time: show what is now playing.
@@ -569,6 +617,7 @@ class PanesApp:
                 self.note(f"stop {Path(self.playing.target).name}")
             self.playing = None
             self.say("Stopped.")
+            self.layout()  # drops the desktop indicator
         self.act(self.service.stop, done=done)
 
     def act_skip(self) -> None:
@@ -669,6 +718,8 @@ class PanesApp:
             self.cast(rest if is_url(rest) else str(Path(rest).expanduser()))
         elif word == "page" and rest:
             self.cast_page(rest)
+        elif word == "desktop":
+            self.cast_desktop()
         elif word == "connect" and rest:
             self.connect_to(rest, by_address=is_address(rest))
         elif word == "scan":
@@ -678,7 +729,7 @@ class PanesApp:
         elif word in ("q", "quit"):
             self.quit()
         else:
-            self.say("Commands: set KEY VALUE, cast PATH|URL, page URL, connect NAME|IP, scan, quit",
+            self.say("Commands: set KEY VALUE, cast PATH|URL, page URL, desktop, connect NAME|IP, scan, quit",
                      error=True)
 
     # -- keys --------------------------------------------------------------------
@@ -741,6 +792,7 @@ class PanesApp:
                                lambda t: self.cast_url(t.strip()))
     def do_page(self): self.ask("web page to show (enter, esc cancels): ",
                                 lambda t: self.cast_page(t.strip()))
+    def do_desktop(self): self.cast_desktop()
     def do_command(self): self.ask(":", self.command)
     def do_quit(self): self.quit()
     def do_stop_quit(self): self.quit(stop=True)
@@ -844,6 +896,9 @@ class PanesApp:
         return [line.decode("utf-8") for line in canvas.text]
 
     def quit(self, stop: bool = False) -> None:
+        # Quitting ends the desktop capture, so stop the TV too rather than
+        # leave it showing a frozen picture.
+        stop = stop or self.service.desktop() is not None
         if stop and self.service.device is not None:
             try:
                 if self.pool is None:
@@ -856,6 +911,7 @@ class PanesApp:
         raise urwid.ExitMainLoop()
 
     def tick(self, loop=None, _data=None) -> None:
+        self.check_desktop()
         if self.playing is not None:
             self.np._invalidate()
             self.controls._invalidate()

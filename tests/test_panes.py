@@ -438,3 +438,52 @@ def test_palette_has_no_bright_yellow_and_reverses_selection():
     roles = {name: rest for name, *rest in PALETTE}
     assert not any("yellow" in " ".join(v) for v in roles.values())
     assert "standout" in roles["sel_focus"][0] and "standout" in roles["key"][0]
+
+
+def test_desktop_cast_shows_an_indicator_everywhere_and_stops():
+    import threading
+    import urwid
+
+    from casttui.desktop import DesktopServer
+
+    svc = service([device()])
+    server = MagicMock(spec=DesktopServer)
+    server.backend, server.ended = "x11", threading.Event()
+    server.viewers.return_value = 1
+    server.url = "http://192.168.1.5:40000/" + "ab" * 16 + "/"
+
+    def cast_desktop(*a):
+        svc._fileserver = server
+        return server
+
+    def stop():
+        svc._fileserver = None
+
+    svc.cast_desktop = MagicMock(side_effect=cast_desktop)
+    svc.stop = MagicMock(side_effect=stop)
+    app = make(svc, Config(last_device="Living Room TV"))
+    app.start()
+    assert "CASTING DESKTOP" not in screen(app)
+    keys(app, "D")
+    svc.cast_desktop.assert_called_once_with("auto", 30, 720, False, "dashcast")
+    for f in ("1", "4", "3"):  # the indicator stays on the bottom line in every pane
+        keys(app, f)
+        assert "CASTING DESKTOP [s: stop]" in screen(app).splitlines()[-1]
+    text = screen(app, 200, 40)
+    assert "x11 720p 30 fps via dashcast" in text and "abab" not in text
+    keys(app, "s")
+    assert "CASTING DESKTOP" not in screen(app) and app.playing is None
+    # The capture dying by itself ends the cast in the UI.
+    keys(app, "D")
+    server.ended.set()
+    server.error.return_value = "x11grab: cannot open display"
+    app.tick()
+    assert "Desktop cast ended: x11grab: cannot open display" in screen(app)
+    assert "CASTING DESKTOP" not in screen(app)
+    # Quitting while casting the desktop stops the TV as well.
+    server.ended.clear()
+    keys(app, "D")
+    svc.stop.reset_mock()
+    with pytest.raises(urwid.ExitMainLoop):
+        app.press("q")
+    svc.stop.assert_called_once()
