@@ -139,7 +139,7 @@ Environment: `CASTTUI_ICONS=ascii|unicode`, `CASTTUI_COLORS=mono|16|256`, `NO_CO
 
 ## tetron-wm
 
-casttui is part of the [tetronos](https://tetronos.github.io/) terminal desktop. In [tetron-wm](https://tetronos.github.io/tetron-wm/), right-click a media file and choose **Open with... casttui**, and it follows the desktop colour depth through `TETRON_WM_COLORS`. tetron-wm casts its own screen to the TV with `cast_command = "casttui"`, through `casttui --page` and `casttui --stop`.
+casttui is part of the [tetronos](https://tetronos.github.io/) terminal desktop. In [tetron-wm](https://tetronos.github.io/tetron-wm/), right-click a media file and choose **Open with... casttui**, and it follows the desktop colour depth through `TETRON_WM_COLORS`. tetron-wm casts its own screen to the TV with `tetron-wm cast`, which serves its cell view as a page and calls `casttui --page` and `casttui --stop` (see `docs/HOWTO_casttui_cast_a_desktop_or_a_web_page_to_a_chromecast.md`).
 
 ## Development
 
