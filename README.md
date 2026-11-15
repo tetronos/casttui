@@ -58,6 +58,7 @@ For scripts and for tetron-wm. Each prints one line and exits 0 on success, 1 on
 ```sh
 casttui --page http://10.0.0.5:8765/   # show a web page on the TV (DashCast)
 casttui --desktop                      # cast this screen until Ctrl+C or --stop
+casttui --cells                        # cast a tetron-wm cell stream read from stdin
 casttui --stop                         # stop whatever the TV shows
 casttui --status                       # "Living Room TV: dashcast"
 ```
@@ -139,7 +140,7 @@ Environment: `CASTTUI_ICONS=ascii|unicode`, `CASTTUI_COLORS=mono|16|256`, `NO_CO
 
 ## tetron-wm
 
-casttui is part of the [tetronos](https://tetronos.github.io/) terminal desktop. In [tetron-wm](https://tetronos.github.io/tetron-wm/), right-click a media file and choose **Open with... casttui**, and it follows the desktop colour depth through `TETRON_WM_COLORS`. tetron-wm casts its own screen to the TV with `tetron-wm cast`, which serves its cell view as a page and calls `casttui --page` and `casttui --stop` (see `docs/HOWTO_casttui_cast_a_desktop_or_a_web_page_to_a_chromecast.md`).
+casttui is part of the [tetronos](https://tetronos.github.io/) terminal desktop. In [tetron-wm](https://tetronos.github.io/tetron-wm/), right-click a media file and choose **Open with... casttui**, and it follows the desktop colour depth through `TETRON_WM_COLORS`. tetron-wm casts its own screen to the TV with `tetron-wm cast`, which pipes its cell view to `casttui --cells` (see `docs/HOWTO_casttui_cast_a_desktop_or_a_web_page_to_a_chromecast.md`).
 
 ## Development
 

@@ -1,6 +1,6 @@
 # How to cast a desktop or a web page to a Chromecast with casttui
 
-Casting the desktop is split between two programs. casttui casts what is on a pixel screen (an X11 desktop, the console framebuffer) and any web page, and it controls the TV. [tetron-wm](https://tetronos.github.io/tetron-wm/) casts its own text desktop as sharp cells through its built-in viewer, and uses casttui to put that page on the TV. This page is the casttui side. The tetron-wm side is in its own `docs/HOWTO_tetron-wm_cast_the_desktop_to_a_chromecast.md`.
+Casting the desktop is split between two programs, and casting is an optional addon for tetron-wm. casttui casts what is on a pixel screen (an X11 desktop, the console framebuffer), any web page, and the cell stream of [tetron-wm](https://tetronos.github.io/tetron-wm/), and it controls the TV. tetron-wm only pipes its text desktop to `casttui --cells` and opens no port. This page is the casttui side. The tetron-wm side is in its own `docs/HOWTO_tetron-wm_cast_the_desktop_to_a_chromecast.md`.
 
 ## Which one to use
 
@@ -8,7 +8,7 @@ Casting the desktop is split between two programs. casttui casts what is on a pi
 | --- | --- | --- | --- |
 | The screen of an X11 desktop or the Linux console | `casttui --desktop` | about 0.5 s | ffmpeg, DashCast on the TV |
 | A web page you or a program serves | `casttui --page URL` | none | the page reachable on the LAN |
-| The tetron-wm desktop | `tetron-wm cast` (it calls casttui) | about 0.1 s | casttui or catt installed |
+| The tetron-wm desktop | `tetron-wm cast` (it pipes the screen to `casttui --cells`) | about 0.1 s | casttui |
 | A file or link | `casttui FILE` or the Source pane | n/a | n/a |
 
 The Chromecast and this computer must be on the same LAN segment, because discovery is mDNS.
@@ -39,6 +39,15 @@ casttui --stop
 This is the same call tetron-wm makes. The page is loaded as a top level page by [DashCast](https://github.com/swiergot/dashcast), so plain `http://` on the LAN works. Print one line and exit 0 on success, exit 1 on failure, with a hard 20 second limit so a dead network never hangs a script. The URL path and query are never printed, because callers put a secret token there. Only `http` and `https` URLs are accepted.
 
 Chromecast web pages render at about 1280x720 on older models, so size canvases from `innerWidth` and `innerHeight` and test on the device.
+
+## Cast a tetron-wm desktop (--cells)
+
+```sh
+casttui --cells [-d DEVICE]          # reads the cell stream on stdin, casts it, quits the TV app when stdin closes
+casttui --cells --no-cast            # no device: prints a URL (a secret) for a browser on this LAN
+```
+
+You normally never run this yourself: `tetron-wm cast` starts it and feeds it. casttui keeps the current grid, so a viewer that connects late is primed with the whole screen, then gets live changes. It prints one line when the cast is up (`casting cells on DEVICE`) and exits when stdin closes, on Ctrl+C, when the TV leaves the app, or after 2 minutes with nobody watching. At most 4 viewers. The stream protocol (one JSON object per line: `hello`, `full`, `diff`, `cursor`, `status`) is described in the tetron-wm howto next to this one.
 
 ## What the TV can see, and who can connect
 

@@ -1,9 +1,8 @@
 """The page casttui serves for ``--cells``: draws the tetron-wm cell grid on a canvas.
 
-A verbatim copy of tetron-wm ``assets/cast.html``. tests/test_cells.py compares
-its SHA-256 with PAGE_SHA256, and tetron-wm's own test does the same with its
-file, so a change in one repository fails the other until the copy is updated.
-Generated text: edit tetron-wm ``assets/cast.html`` first, then copy it here.
+This is the one copy of the page (tetron-wm no longer ships one). It speaks the
+protocol v1 events of :mod:`casttui.cells` and nothing else. tests/test_cells.py
+compares its SHA-256 with PAGE_SHA256, so an edit must update the hash on purpose.
 """
 PAGE_SHA256 = "8a31cc437cda9f9dde9247e0310cfe655a4af26642758eae9deeb99916df4fd3"
 
