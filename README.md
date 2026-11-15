@@ -51,10 +51,29 @@ casttui --help                   # every option and setting
 
 With a file or URL, casttui casts to the remembered device, or to the only Chromecast found. With several and none remembered, pick one and the cast starts.
 
+### Without the interface
+
+For scripts and for tetron-wm. Each prints one line and exits 0 on success, 1 on failure (within 20 seconds). The device is `-d`, else the remembered one, else the only one found.
+
+```sh
+casttui --page http://10.0.0.5:8765/   # show a web page on the TV (DashCast)
+casttui --desktop                      # cast this screen until Ctrl+C or --stop
+casttui --stop                         # stop whatever the TV shows
+casttui --status                       # "Living Room TV: dashcast"
+```
+
+A page URL's path and query are never printed, so a secret token in them stays secret.
+
+### Casting the desktop
+
+`D` in the interface, or `casttui --desktop`, captures this screen with ffmpeg and puts it on the TV with about half a second of delay: a low delay H.264 stream played by a small page loaded through DashCast. Capture is X11 (`$DISPLAY`), the console framebuffer (`/dev/fb0`, group `video`), or, experimental, wlroots Wayland through `wf-recorder`. GNOME and KDE on Wayland are not supported yet. `desktop_backend = "test"` casts a test pattern instead of the screen.
+
+Everything on the screen is visible on the TV, so a red **CASTING DESKTOP [s: stop]** stays on the bottom line while it runs. The stream is served only on the LAN address that reaches the Chromecast, under a random 128 bit path that is never shown, and only to the Chromecast and this computer. It ends on `s`, on quit, when the TV switches to another app, or after two minutes with nobody watching. `desktop_receiver = "media"` uses the Default Media Receiver instead of DashCast: several seconds of delay, for devices without DashCast.
+
 ### Panes
 
 - **1 Devices**: found devices and saved addresses. `enter` connects, `a` adds a device by address (for one discovery can not see, such as on another subnet), `d` forgets an address, `r` scans again.
-- **2 Source**: a file browser. `enter` casts a file or opens a folder, `backspace` goes up, `.` shows dot files. `u` asks for a link (direct media, YouTube or another yt-dlp site). `w` shows a web page.
+- **2 Source**: a file browser. `enter` casts a file or opens a folder, `backspace` goes up, `.` shows dot files. `u` asks for a link (direct media, YouTube or another yt-dlp site). `w` shows a web page. `D` casts the desktop.
 - **3 Now playing**: title, state, volume, progress, device, and whether the file plays directly or is transcoded.
 - **4 Config**: every setting. `enter` or `+`/`-` changes it, saved at once.
 - **5 History**: past casts. `enter` casts again, `d` removes.
@@ -71,9 +90,10 @@ The layout follows the terminal width: three columns from 150 columns, two from 
 | `m` | mute |
 | `s` | stop |
 | `n` | skip |
+| `D` | cast the desktop (`s` stops) |
 | `tab`, `1`-`5` | next pane, jump to pane |
 | `z` | zoom the focused pane |
-| `:` | command line: `set KEY VALUE`, `cast PATH\|URL`, `page URL`, `connect NAME\|IP`, `scan` |
+| `:` | command line: `set KEY VALUE`, `cast PATH\|URL`, `page URL`, `desktop`, `connect NAME\|IP`, `scan` |
 | `?` | every key |
 | `q` | quit, playback continues |
 | `Q` | stop playback and quit |
@@ -96,6 +116,11 @@ volume_step = 0.1       # 0.0-1.0 per volume key
 icons = "auto"          # ascii, unicode; auto is ascii on a bare console
 colors = "auto"         # mono, 16, 256; NO_COLOR and TETRON_WM_COLORS are honoured
 history = true          # keep History across runs
+desktop_fps = 30        # desktop cast frame rate
+desktop_scale = 720     # desktop cast height, 0 keeps the screen size
+desktop_audio = false   # send the desktop sound too (PulseAudio/PipeWire monitor)
+desktop_backend = "auto"     # x11, wayland, fbdev, test
+desktop_receiver = "dashcast"  # or "media" (Default Media Receiver, seconds of delay)
 start_dir = ""          # Source pane folder, empty is the current folder
 last_device = "Living Room TV"   # set on connect
 devices = ["10.0.5.20"]          # saved addresses
@@ -114,7 +139,7 @@ Environment: `CASTTUI_ICONS=ascii|unicode`, `CASTTUI_COLORS=mono|16|256`, `NO_CO
 
 ## tetron-wm
 
-casttui is part of the [tetronos](https://tetronos.github.io/) terminal desktop. In [tetron-wm](https://tetronos.github.io/tetron-wm/), right-click a media file and choose **Open with... casttui**, and it follows the desktop colour depth through `TETRON_WM_COLORS`.
+casttui is part of the [tetronos](https://tetronos.github.io/) terminal desktop. In [tetron-wm](https://tetronos.github.io/tetron-wm/), right-click a media file and choose **Open with... casttui**, and it follows the desktop colour depth through `TETRON_WM_COLORS`. tetron-wm casts its own screen to the TV with `cast_command = "casttui"`, through `casttui --page` and `casttui --stop`.
 
 ## Development
 
