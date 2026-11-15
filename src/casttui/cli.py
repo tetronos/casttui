@@ -31,6 +31,9 @@ def parser() -> argparse.ArgumentParser:
     h = p.add_mutually_exclusive_group()
     h.add_argument("--page", metavar="URL",
                    help="show a web page on the device (DashCast) and exit")
+    h.add_argument("--desktop", action="store_true",
+                   help="cast the live screen until Ctrl+C or casttui --stop "
+                        "(desktop_* settings)")
     h.add_argument("--stop", action="store_true",
                    help="stop whatever the device is showing and exit")
     h.add_argument("--status", action="store_true",
@@ -43,8 +46,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     bad right-click never opens an empty UI. File paths are made absolute."""
     p = parser()
     args = p.parse_args(argv)
-    if (args.page or args.stop or args.status) and args.source is not None:
-        p.error("a source can not be combined with --page, --stop or --status")
+    if (args.page or args.desktop or args.stop or args.status) and args.source is not None:
+        p.error("a source can not be combined with --page, --desktop, --stop or --status")
     if args.page is not None and not is_url(args.page):
         p.error("--page needs an http:// or https:// URL")
     if args.source is not None and not is_url(args.source):
@@ -64,8 +67,11 @@ def main() -> None:
 
     args = parse_args(sys.argv[1:])
     # Headless first, before importing the UI: fast, and no terminal needed.
-    if args.page or args.stop or args.status:
+    if args.page or args.desktop or args.stop or args.status:
         from . import headless
+
+        if args.desktop:
+            headless.exit_now(headless.desktop(device=args.device))
 
         action = "page" if args.page else "stop" if args.stop else "status"
         headless.exit_now(headless.run(action, url=args.page, device=args.device))

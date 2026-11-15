@@ -52,8 +52,10 @@ def test_headless_flags_parse_and_conflict(capsys):
     a = parse_args(["--page", "http://10.0.0.5:8765/tok/", "-d", "TV"])
     assert (a.page, a.device, a.source) == ("http://10.0.0.5:8765/tok/", "TV", None)
     assert parse_args(["--stop"]).stop and parse_args(["--status"]).status
+    assert parse_args(["--desktop", "-d", "TV"]).desktop
     for bad in (["--page", "http://x/", "https://y"], ["--stop", "--status"],
-                ["--page", "file:///etc/passwd"], ["--stop", "https://y"]):
+                ["--page", "file:///etc/passwd"], ["--stop", "https://y"],
+                ["--desktop", "--stop"], ["--desktop", "x.mp4"]):
         with pytest.raises(SystemExit) as e:
             parse_args(bad)
         assert e.value.code == 2

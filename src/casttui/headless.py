@@ -1,4 +1,5 @@
-"""Headless commands: cast a page, stop, report status, without the UI.
+"""Headless commands: cast a page or the desktop, stop, report status, without
+the UI.
 
 Used by scripts and by tetron-wm (``cast_command = "casttui"``), which runs
 these through a capped subprocess, so every command:
@@ -14,6 +15,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
+import time
 from typing import Callable, Optional
 from urllib.parse import urlsplit
 
@@ -132,6 +134,101 @@ def run(action: str, url: Optional[str] = None, device: Optional[str] = None,
             service.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+# Leave the desktop cast when nobody has watched the stream for this long
+# (the TV was switched to another app, or lost the network for good).
+DESKTOP_IDLE = 120.0
+
+# After casting, how long DashCast may take to show up as the running app
+# before "not running" means the cast was stopped.
+DESKTOP_GRACE = 15.0
+
+
+def desktop(device: Optional[str] = None, config=None, service=None,
+            stop: Optional[threading.Event] = None, out=print) -> int:
+    """Cast the live desktop until Ctrl+C, ``casttui --stop``, or an error.
+
+    Runs the capture and stream server here, casts the player page through
+    DashCast, then watches: the capture must keep running, the device must
+    keep running the app that was cast (``casttui --stop`` or the TV remote
+    ends it), and
+    somebody must be watching the stream. Ctrl+C quits DashCast on the TV too,
+    so it does not keep showing a frozen picture.
+    """
+    from . import desktop as dt
+
+    if service is None:
+        from .service import CastService
+        service = CastService()
+    if config is None:
+        from .config import Config
+        config = Config.load()
+    stop = stop or threading.Event()
+    server = None
+
+    def connect():
+        dev = resolve_device(service, device, config.last_device)
+        service.device = dev
+        return dev
+
+    try:
+        backend = config.desktop_backend
+        if backend == "auto":
+            backend = dt.detect_backend()
+        dev = run_with_timeout(connect, TIMEOUT)
+        from catt.util import get_local_ip
+
+        local = get_local_ip(dev.ip_addr)
+        if not local:
+            raise RuntimeError("could not find a LAN address the Chromecast can reach")
+        cmd = dt.capture_cmd(backend, config.desktop_fps, config.desktop_scale,
+                             config.desktop_audio)
+        # Only the TV and this host may fetch the page and the stream.
+        server = dt.DesktopServer(cmd, local, allow={dev.ip_addr, local, "127.0.0.1"},
+                                  audio=config.desktop_audio)
+        server.start()
+        if not server.wait_ready(10):
+            raise RuntimeError(f"screen capture failed: {server.error()}")
+        if config.desktop_receiver == "media":
+            # Part C fallback: the Default Media Receiver plays the stream URL
+            # itself; it buffers several seconds but needs no DashCast.
+            def play():
+                service._cast(dev, server.url + "stream", "video/mp4", "Desktop")
+            run_with_timeout(play, TIMEOUT)
+        else:
+            run_with_timeout(lambda: service.cast_site(server.url), TIMEOUT)
+        dashcast = getattr(getattr(dev, "_cast", None), "app_id", None)
+        out(f"CASTING DESKTOP ({backend}) to {dev.name} from {safe_url(server.url)}. "
+            "Ctrl+C or casttui --stop ends it.")
+        started = time.monotonic()
+        while not stop.wait(1.0):
+            if server.ended.is_set():
+                raise RuntimeError(f"screen capture stopped: {server.error()}")
+            running = getattr(getattr(dev, "_cast", None), "app_id", None)
+            if dashcast and running != dashcast and time.monotonic() - started > DESKTOP_GRACE:
+                out(f"stopped: {dev.name} is no longer showing the desktop")
+                return 0
+            if server.idle_seconds() > DESKTOP_IDLE:
+                out(f"stopped: nobody watched for {DESKTOP_IDLE:.0f} s")
+                return 0
+        return 0
+    except KeyboardInterrupt:
+        try:
+            run_with_timeout(lambda: service.stop() or "", 10)
+        except Exception:  # noqa: BLE001  the TV is best effort on the way out
+            pass
+        out("stopped")
+        return 0
+    except Exception as e:  # noqa: BLE001  one clean line, never a traceback
+        msg = str(e) or type(e).__name__
+        if server is not None:
+            msg = msg.replace(server.url, safe_url(server.url))
+        print(f"casttui: {msg}", file=sys.stderr)
+        return 1
+    finally:
+        if server is not None:
+            server.stop()
 
 
 def exit_now(code: int) -> None:
