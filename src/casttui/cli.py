@@ -34,10 +34,15 @@ def parser() -> argparse.ArgumentParser:
     h.add_argument("--desktop", action="store_true",
                    help="cast the live screen until Ctrl+C or casttui --stop "
                         "(desktop_* settings)")
+    h.add_argument("--cells", action="store_true",
+                   help="serve and cast a tetron-wm cell stream read from stdin "
+                        "(JSON lines) until the pipe closes or casttui --stop")
     h.add_argument("--stop", action="store_true",
                    help="stop whatever the device is showing and exit")
     h.add_argument("--status", action="store_true",
                    help="print the device name and running app, and exit")
+    p.add_argument("--no-cast", action="store_true",
+                   help="with --cells: do not use a device, print the URL for a browser on this LAN")
     return p
 
 
@@ -46,8 +51,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     bad right-click never opens an empty UI. File paths are made absolute."""
     p = parser()
     args = p.parse_args(argv)
-    if (args.page or args.desktop or args.stop or args.status) and args.source is not None:
-        p.error("a source can not be combined with --page, --desktop, --stop or --status")
+    if (args.page or args.desktop or args.cells or args.stop or args.status) and args.source is not None:
+        p.error("a source can not be combined with --page, --desktop, --cells, --stop or --status")
+    if args.no_cast and not args.cells:
+        p.error("--no-cast needs --cells")
     if args.page is not None and not is_url(args.page):
         p.error("--page needs an http:// or https:// URL")
     if args.source is not None and not is_url(args.source):
@@ -67,8 +74,11 @@ def main() -> None:
 
     args = parse_args(sys.argv[1:])
     # Headless first, before importing the UI: fast, and no terminal needed.
-    if args.page or args.desktop or args.stop or args.status:
+    if args.page or args.desktop or args.cells or args.stop or args.status:
         from . import headless
+
+        if args.cells:
+            headless.exit_now(headless.cells(device=args.device, no_cast=args.no_cast))
 
         if args.desktop:
             headless.exit_now(headless.desktop(device=args.device))

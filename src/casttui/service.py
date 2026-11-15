@@ -325,6 +325,27 @@ class CastService:
         self._fileserver = server
         return server
 
+    def cells_server(self):
+        """Start a :class:`~casttui.cells.CellsServer` for the device (not cast yet).
+
+        Held like the desktop server, so :meth:`stop`, :meth:`close` and the
+        next cast end it. Only the device and this host may fetch the page.
+        """
+        from .cells import CellsServer
+        dev = self._require()
+        self._stop_fileserver()
+        local = get_local_ip(dev.ip_addr)
+        if not local:
+            raise RuntimeError("could not find a LAN address the Chromecast can reach")
+        server = CellsServer(local, allow={dev.ip_addr, local, "127.0.0.1"})
+        server.start()
+        self._fileserver = server
+        return server
+
+    def show_page(self, server) -> None:
+        """Put ``server``'s page on the device (DashCast)."""
+        self._load_page(self._require(), server.url)
+
     def desktop(self) -> Optional[DesktopServer]:
         """The running desktop cast, or None."""
         server = self._fileserver

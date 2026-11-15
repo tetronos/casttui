@@ -208,6 +208,108 @@ def desktop(device: Optional[str] = None, config=None, service=None,
         service.close()  # stops the capture and the server
 
 
+def cells(device: Optional[str] = None, config=None, service=None, stdin=None,
+          stop: Optional[threading.Event] = None, out=None, no_cast: bool = False) -> int:
+    """Serve a tetron-wm cell stream read from ``stdin`` and cast it.
+
+    ``stdin`` carries one JSON event per line (see :mod:`casttui.cells`). The
+    cast ends when the pipe closes (tetron-wm quit or ``cast off``), on Ctrl+C,
+    when the device leaves the app (``casttui --stop``, the TV remote), or
+    after DESKTOP_IDLE seconds without a viewer; the TV app is quit too, so it
+    does not keep showing a frozen screen. With ``no_cast`` there is no device:
+    the URL (a secret) is printed for a browser on this LAN and the stream is
+    served until the pipe closes.
+    """
+    import json
+
+    out = out or (lambda m: print(m, flush=True))  # a pipe reader needs each line at once
+    stdin = stdin if stdin is not None else sys.stdin
+    stop = stop or threading.Event()
+    if not no_cast:
+        if service is None:
+            from .service import CastService
+            service = CastService()
+        if config is None:
+            from .config import Config
+            config = Config.load()
+    server = None
+
+    def reader() -> None:
+        for line in stdin:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and server is not None:
+                try:
+                    server.feed(event)
+                except (KeyError, TypeError, ValueError):
+                    continue
+        if server is not None:
+            server.ended.set()
+
+    try:
+        if no_cast:
+            from .cells import CellsServer
+            from catt.util import get_local_ip
+            server = CellsServer(get_local_ip("192.0.2.1") or "127.0.0.1")
+            server.start()
+            print("warning: anyone on this network with this URL sees the screen", file=sys.stderr)
+            out(server.url)
+        else:
+            def connect():
+                dev = resolve_device(service, device, config.last_device)
+                service.device = dev
+                return dev
+            dev = run_with_timeout(connect, TIMEOUT)
+            server = service.cells_server()
+        threading.Thread(target=reader, daemon=True).start()
+        if not no_cast:
+            run_with_timeout(lambda: service.show_page(server) or "", TIMEOUT)
+            cast_app = getattr(getattr(dev, "_cast", None), "app_id", None)
+            out(f"casting cells on {dev.name}")
+        started = time.monotonic()
+        while not stop.wait(0.5):
+            if server.ended.is_set():
+                break
+            if no_cast:
+                continue
+            running = getattr(getattr(dev, "_cast", None), "app_id", None)
+            if cast_app and running != cast_app and time.monotonic() - started > DESKTOP_GRACE:
+                out(f"stopped: {dev.name} is no longer showing the screen")
+                return 0
+            if server.idle_seconds() > DESKTOP_IDLE:
+                out(f"stopped: nobody watched for {DESKTOP_IDLE:.0f} s")
+                return 0
+        if not no_cast:
+            try:
+                run_with_timeout(lambda: service.stop() or "", 10)
+            except Exception:  # noqa: BLE001  the TV is best effort on the way out
+                pass
+        out("stopped")
+        return 0
+    except KeyboardInterrupt:
+        if not no_cast:
+            try:
+                run_with_timeout(lambda: service.stop() or "", 10)
+            except Exception:  # noqa: BLE001
+                pass
+        out("stopped")
+        return 0
+    except Exception as e:  # noqa: BLE001  one clean line, never a traceback
+        msg = str(e) or type(e).__name__
+        if server is not None:
+            msg = msg.replace(server.url, safe_url(server.url))
+        print(f"casttui: {msg}", file=sys.stderr)
+        return 1
+    finally:
+        if no_cast:
+            if server is not None:
+                server.stop()
+        else:
+            service.close()  # stops the server
+
+
 def exit_now(code: int) -> None:
     """Exit without waiting for library threads (zeroconf, pychromecast).
 

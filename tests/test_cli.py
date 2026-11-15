@@ -59,3 +59,12 @@ def test_headless_flags_parse_and_conflict(capsys):
         with pytest.raises(SystemExit) as e:
             parse_args(bad)
         assert e.value.code == 2
+
+
+def test_cells_flags():
+    from casttui.cli import parse_args
+    assert parse_args(["--cells"]).cells
+    assert parse_args(["--cells", "--no-cast"]).no_cast
+    for bad in (["--no-cast"], ["--cells", "--desktop"], ["--cells", "somefile"]):
+        with pytest.raises(SystemExit):
+            parse_args(bad)
