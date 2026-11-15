@@ -5,6 +5,7 @@
 ### Added
 - Headless commands for scripts and tetron-wm: `--page URL` (show a web page through DashCast), `--stop`, `--status`. One line of output, exit 0 or 1, a 20 second limit. The device is `-d`, the remembered one, or the only one found. A page URL's path and query are never printed.
 - Cast the desktop: `D`, `:desktop` or `casttui --desktop`. ffmpeg captures the screen (X11, framebuffer, experimental wlroots Wayland, or a test pattern) as low delay H.264, casttui serves it with a small player page loaded through DashCast, about half a second behind the screen. Served only on the LAN address, under a secret random path, only to the Chromecast and this computer. A red CASTING DESKTOP [s: stop] item stays on the key bar while it runs.
+- `casttui --cells [-d DEVICE]` serves and casts a tetron-wm cell stream read from stdin as JSON lines (protocol v1: hello, full, diff, cursor, status), so tetron-wm needs no server of its own. The current grid is kept, so a viewer that connects late sees the whole screen. `--cells --no-cast` prints a URL (a secret) for a browser on the LAN instead. Ends when stdin closes, on Ctrl+C, when the TV leaves the app, or after 2 minutes with nobody watching, and quits the TV app. At most 4 viewers, LAN address only, random 128 bit path.
 - New settings: `desktop_fps`, `desktop_scale`, `desktop_audio`, `desktop_backend`, `desktop_receiver` (`media` plays the desktop on the Default Media Receiver, with seconds of delay).
 
 ## [0.2.0] - 2026-11-07
