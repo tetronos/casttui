@@ -1,4 +1,5 @@
-"""Command line: parse the arguments, then start the paned interface."""
+"""Command line: parse the arguments, then run a headless command or start the
+paned interface."""
 from __future__ import annotations
 
 import argparse
@@ -25,6 +26,15 @@ def parser() -> argparse.ArgumentParser:
                    help="a media file or URL to cast as soon as a device is connected")
     p.add_argument("-d", "--device", metavar="NAME_OR_IP",
                    help="connect to this device (a name or an address) without scanning first")
+    # Headless commands: no UI, one line of output, exit code 0 or 1. Flags
+    # rather than subcommands, so a file named "stop" or "page" stays castable.
+    h = p.add_mutually_exclusive_group()
+    h.add_argument("--page", metavar="URL",
+                   help="show a web page on the device (DashCast) and exit")
+    h.add_argument("--stop", action="store_true",
+                   help="stop whatever the device is showing and exit")
+    h.add_argument("--status", action="store_true",
+                   help="print the device name and running app, and exit")
     return p
 
 
@@ -33,6 +43,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     bad right-click never opens an empty UI. File paths are made absolute."""
     p = parser()
     args = p.parse_args(argv)
+    if (args.page or args.stop or args.status) and args.source is not None:
+        p.error("a source can not be combined with --page, --stop or --status")
+    if args.page is not None and not is_url(args.page):
+        p.error("--page needs an http:// or https:// URL")
     if args.source is not None and not is_url(args.source):
         path = Path(args.source).expanduser()
         if not path.is_file():
@@ -49,6 +63,12 @@ def main() -> None:
     from .config import Config
 
     args = parse_args(sys.argv[1:])
+    # Headless first, before importing the UI: fast, and no terminal needed.
+    if args.page or args.stop or args.status:
+        from . import headless
+
+        action = "page" if args.page else "stop" if args.stop else "status"
+        headless.exit_now(headless.run(action, url=args.page, device=args.device))
     cfg = Config.load()
     from .panes import run
 
