@@ -89,7 +89,7 @@ The layout follows the terminal width: three columns from 150 columns, two from 
 | `h` `l`, arrows | seek |
 | `+` `-` | volume |
 | `m` | mute |
-| `s` | stop |
+| `s` | stop (also the red **[s: STOP]** button, always on the bottom line) |
 | `n` | skip |
 | `D` | cast the desktop (`s` stops) |
 | `tab`, `1`-`5` | next pane, jump to pane |

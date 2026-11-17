@@ -160,7 +160,12 @@ class PanesApp:
             # bottom line in every pane and layout, and make it a stop button.
             if self.service.desktop() is not None:
                 self.bar.insert(0, (" CASTING DESKTOP [s: stop] ", "stop"))
-            self.keybar.set_text([("error", t) if a == "stop" and t.startswith(" CASTING") else t
+            else:
+                # A permanent Stop on the bottom line of every pane: it stops
+                # whatever the chosen device is showing, a cast from another
+                # app included.
+                self.bar.insert(0, (" [s: STOP] ", "stop"))
+            self.keybar.set_text([("error", t) if a == "stop" and t.startswith((" CASTING", " [s: STOP")) else t
                                   for t, a in self.bar])
         self.body._invalidate()
 
