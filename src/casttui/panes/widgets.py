@@ -22,6 +22,8 @@ PALETTE = [
     ("dim", "default", "default", "", "default", "default"),
     ("state", "dark green,bold", "default", "bold", "#080,bold", "default"),
     ("key", "default,standout", "default", "standout", "default,standout", "default"),
+    # The permanent Stop on the key bar: bold reverse video like the bar, no colour.
+    ("stopbtn", "default,standout,bold", "default", "standout,bold", "default,standout,bold", "default"),
     ("msg", "default", "default", "", "default", "default"),
     ("error", "dark red,bold", "default", "bold", "#c00,bold", "default"),
     ("prompt", "dark magenta,bold", "default", "bold", "#a0a,bold", "default"),

@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- A permanent red **[s: STOP]** button on the bottom line of every pane. `s` or a click stops whatever the chosen device is showing, including a cast started by another app. While the desktop is cast it reads CASTING DESKTOP [s: stop] as before.
+- A permanent bold **[s: STOP]** button on the bottom line of every pane. `s` or a click stops whatever the chosen device is showing, including a cast started by another app. While the desktop is cast it reads CASTING DESKTOP [s: stop] as before.
 
 ## [0.15.0] - 2026-11-15
 
