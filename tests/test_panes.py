@@ -487,3 +487,17 @@ def test_desktop_cast_shows_an_indicator_everywhere_and_stops():
     with pytest.raises(urwid.ExitMainLoop):
         app.press("q")
     svc.stop.assert_called_once()
+
+
+def test_a_stop_button_is_always_on_the_bottom_line():
+    svc = service([device()])
+    app = make(svc, Config(last_device="Living Room TV"))
+    app.start()
+    size = (120, 32)
+    for f in ("1", "2", "3", "4", "5"):
+        keys(app, f)
+        assert "[s: STOP]" in screen(app).splitlines()[-1]
+    # Nothing was cast from here: the click still stops the device.
+    line = screen(app).splitlines()[-1]
+    app.top.mouse_event(size, "mouse press", 1, line.index("[s: STOP]") + 1, size[1] - 1, True)
+    svc.stop.assert_called_once()
