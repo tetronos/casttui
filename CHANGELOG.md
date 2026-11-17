@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-17
+
 ### Added
 - A permanent bold **[s: STOP]** button on the bottom line of every pane. `s` or a click stops whatever the chosen device is showing, including a cast started by another app. While the desktop is cast it reads CASTING DESKTOP [s: stop] as before.
 
